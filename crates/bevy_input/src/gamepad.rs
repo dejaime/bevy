@@ -885,6 +885,40 @@ impl AxisSettings {
         self.threshold
     }
 
+    /// Get the current offset corrective value.
+    pub fn offset(&self) -> f32 {
+        self.offset
+    }
+
+    /// Try to set the corrective offset value added to the raw input value.
+    ///
+    /// # Errors
+    ///
+    /// If the value passed is not within [livezone_lowerbound..=livezone_upperbound], returns `GamepadSettingsError::OffsetOutOfLivezone`.
+    pub fn try_set_offset(&mut self, value: f32) -> Result<(), AxisSettingsError> {
+        if !(self.livezone_lowerbound..=self.livezone_upperbound).contains(&value) {
+            Err(
+                AxisSettingsError::OffsetOutOfLivezone {
+                    offset: value,
+                    livezone_lowerbound: self.livezone_lowerbound,
+                    livezone_upperbound: self.livezone_upperbound,
+                }
+            )
+        } else {
+            self.offset = value;
+            Ok(())
+        }
+    }
+
+    /// Try to set the minimum value by which input must change before the changes will be applied.
+    /// If the value passed is not within [0.0..=2.0], the value will not be changed.
+    ///
+    /// Returns the new value of threshold.
+    pub fn set_offset(&mut self, value: f32) -> f32 {
+        self.try_set_offset(value).ok();
+        self.offset
+    }
+
     /// Clamps the `raw_value` according to the `AxisSettings`.
     pub fn clamp(&self, new_value: f32) -> f32 {
         if self.deadzone_lowerbound <= new_value && new_value <= self.deadzone_upperbound {
