@@ -39,6 +39,13 @@ pub enum AxisSettingsError {
     /// The given parameter was not in range 0.0..=2.0.
     #[error("invalid threshold {0}, expected 0.0 <= threshold <= 2.0")]
     Threshold(f32),
+	///  Parameter `offset` was not a value between parameters `livezone_upperbound` and `livezone_lowerbound`.
+    #[error("invalid parameter values offset {} livezone_upperbound {} livezone_lowerbound {}, expected livezone_lowerbound <= offset <= livezone_upperbound", .offset, .livezone_upperbound, .livezone_lowerbound)]
+    OffsetOutOfLivezone {
+        offset: f32,
+        livezone_lowerbound: f32,
+        livezone_upperbound: f32,
+    },
 }
 
 /// Errors that occur when setting button settings for gamepad input.
@@ -597,6 +604,8 @@ pub struct AxisSettings {
     livezone_lowerbound: f32,
     /// `threshold` defines the minimum difference between old and new values to apply the changes.
     threshold: f32,
+	/// Constant value added to offset the raw input for drift correction 
+	offset: f32,
 }
 
 impl Default for AxisSettings {
@@ -607,6 +616,7 @@ impl Default for AxisSettings {
             deadzone_lowerbound: -0.05,
             livezone_lowerbound: -0.95,
             threshold: 0.01,
+			offset: 0.00,
         }
     }
 }
@@ -621,12 +631,14 @@ impl AxisSettings {
     /// + `deadzone_upperbound` - the value below which positive inputs will be rounded down to 0.0.
     /// + `livezone_upperbound` - the value above which inputs will be rounded up to 1.0.
     /// + `threshold` - the minimum value by which input must change before the change is registered.
+	/// + `offset` - a constant offset to the raw value, useful for drift and other corrections, should be in livezone
     ///
     /// Restrictions:
     ///
     /// + `-1.0 <= livezone_lowerbound <= deadzone_lowerbound <= 0.0`
     /// + `0.0 <= deadzone_upperbound <= livezone_upperbound <= 1.0`
     /// + `0.0 <= threshold <= 2.0`
+	/// + livezone_lowerbound <= offset <= livezone_upperbound
     ///
     /// # Errors
     ///
@@ -639,6 +651,7 @@ impl AxisSettings {
         deadzone_upperbound: f32,
         livezone_upperbound: f32,
         threshold: f32,
+		offset: f32,
     ) -> Result<AxisSettings, AxisSettingsError> {
         if !(-1.0..=0.0).contains(&livezone_lowerbound) {
             Err(AxisSettingsError::LiveZoneLowerBoundOutOfRange(
@@ -672,6 +685,14 @@ impl AxisSettings {
             )
         } else if !(0.0..=2.0).contains(&threshold) {
             Err(AxisSettingsError::Threshold(threshold))
+        } else if !(livezone_lowerbound..=livezone_upperbound).contains(&offset) {
+            Err(
+				AxisSettingsError::OffsetOutOfLivezone {
+					offset,
+					livezone_lowerbound,
+					livezone_upperbound,
+				}
+			)
         } else {
             Ok(Self {
                 livezone_lowerbound,
@@ -679,6 +700,7 @@ impl AxisSettings {
                 deadzone_upperbound,
                 livezone_upperbound,
                 threshold,
+				offset,
             })
         }
     }
@@ -1612,13 +1634,14 @@ mod tests {
     fn test_try_out_of_range_axis_settings() {
         let mut axis_settings = AxisSettings::default();
         assert_eq!(
-            AxisSettings::new(-0.95, -0.05, 0.05, 0.95, 0.001),
+            AxisSettings::new(-0.95, -0.05, 0.05, 0.95, 0.001, 0.00),
             Ok(AxisSettings {
                 livezone_lowerbound: -0.95,
                 deadzone_lowerbound: -0.05,
                 deadzone_upperbound: 0.05,
                 livezone_upperbound: 0.95,
                 threshold: 0.001,
+				offset: 0.00,
             })
         );
         assert_eq!(
