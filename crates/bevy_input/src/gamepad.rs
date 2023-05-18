@@ -41,7 +41,7 @@ pub enum AxisSettingsError {
     Threshold(f32),
     ///  Parameter `offset` was not a value between parameters `livezone_upperbound` and `livezone_lowerbound`.
     #[error("invalid parameter values offset {} livezone_upperbound {} livezone_lowerbound {}, expected livezone_lowerbound <= offset <= livezone_upperbound", .offset, .livezone_upperbound, .livezone_lowerbound)]
-    OffsetOutOfLivezone {
+    OffsetOutOfLiveZone {
         offset: f32,
         livezone_lowerbound: f32,
         livezone_upperbound: f32,
@@ -687,7 +687,7 @@ impl AxisSettings {
             Err(AxisSettingsError::Threshold(threshold))
         } else if !(livezone_lowerbound..=livezone_upperbound).contains(&offset) {
             Err(
-                AxisSettingsError::OffsetOutOfLivezone {
+                AxisSettingsError::OffsetOutOfLiveZone {
                     offset,
                     livezone_lowerbound,
                     livezone_upperbound,
@@ -898,7 +898,7 @@ impl AxisSettings {
     pub fn try_set_offset(&mut self, value: f32) -> Result<(), AxisSettingsError> {
         if !(self.livezone_lowerbound..=self.livezone_upperbound).contains(&value) {
             Err(
-                AxisSettingsError::OffsetOutOfLivezone {
+                AxisSettingsError::OffsetOutOfLiveZone {
                     offset: value,
                     livezone_lowerbound: self.livezone_lowerbound,
                     livezone_upperbound: self.livezone_upperbound,
@@ -1664,6 +1664,42 @@ mod tests {
         }
     }
 
+
+    #[test]
+    fn test_set_offset_given_valid_parameters() {
+		let cases = [
+            (1.0, -1.0, 0.95),
+            (0.95, -0.95, -0.9),
+            (0.9, -0.9, 0.8),
+            (0.8, -0.8, -0.4),
+            (0.75, 0.0, 0.1),
+            (0.7, -0.7, 0.0),
+            (0.1, -0.1, 0.0),
+        ];
+
+        for (livezone_upperbound, livezone_lowerbound, offset) in cases {
+			let axis_settings_result = AxisSettings::new (
+				livezone_lowerbound,
+				0.0,
+				0.0,
+				livezone_upperbound,
+				0.01,
+				offset
+			);
+
+			match axis_settings_result {
+				Ok(axis_settings) => {
+					assert_eq!(axis_settings.offset(), offset);
+				},
+				Err(_) => {
+					panic!(
+						"Input should be valid try_set_offset({offset}) while livezone_lowerbound is {livezone_lowerbound} and livezone_upperbound is {livezone_upperbound}"
+					)
+				}
+			}
+        }
+	}
+
     #[test]
     fn test_try_out_of_range_axis_settings() {
         let mut axis_settings = AxisSettings::default();
@@ -1752,6 +1788,16 @@ mod tests {
                 }
             ),
             axis_settings.try_set_livezone_upperbound(0.1)
+        );
+        assert_eq!(
+            Err(
+                AxisSettingsError::OffsetOutOfLiveZone { 
+                    offset: -0.95,
+                    livezone_lowerbound: axis_settings.livezone_lowerbound,
+                    livezone_upperbound: axis_settings.livezone_upperbound,
+                }
+            ),
+            axis_settings.try_set_offset(-0.95)
         );
     }
 }
